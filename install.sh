@@ -47,7 +47,7 @@ xray_status_conf="${xray_conf_dir}/status_config.json"
 xray_default_conf="/usr/local/etc/xray/config.json"
 nginx_conf="${nginx_conf_dir}/xray.conf"
 nginx_upstream_conf="${nginx_conf_dir}/xray-server.conf"
-yzto_commond_file="/usr/bin/yzto"
+yzto_command_file="/usr/bin/yzto"
 ssl_chainpath="${yzto_dir}/cert"
 nginx_dir="/etc/nginx"
 nginx_openssl_src="/usr/local/src"
@@ -258,14 +258,14 @@ update_sh() {
 }
 
 check_file_integrity() {
-    if [[ ! -L ${yzto_commond_file} ]] && [[ ! -f ${yzto_dir}/install.sh ]]; then
+    if [[ ! -L ${yzto_command_file} ]] && [[ ! -f ${yzto_dir}/install.sh ]]; then
         check_system
         pkg_install "bc,jq,wget"
         [[ ! -d "${yzto_dir}" ]] && mkdir -p ${yzto_dir}
         [[ ! -d "${yzto_dir}/tmp" ]] && mkdir -p ${yzto_dir}/tmp
         wget -N --no-check-certificate -P ${yzto_dir} https://raw.githubusercontent.com/stephen7h/allin_X/main/install.sh && chmod +x ${yzto_dir}/install.sh
         judge "下载最新脚本"
-        ln -s ${yzto_dir}/install.sh ${yzto_commond_file}
+        ln -s ${yzto_dir}/install.sh ${yzto_command_file}
         clear
         bash yzto
     fi
@@ -443,10 +443,10 @@ show_help() {
     exit 0
 }
 
-yzto_commond() {
-    if [[ -L ${yzto_commond_file} ]] || [[ -f ${yzto_dir}/install.sh ]]; then
+yzto_command() {
+    if [[ -L ${yzto_command_file} ]] || [[ -f ${yzto_dir}/install.sh ]]; then
         ##在线运行与本地脚本比对
-        [[ ! -L ${yzto_commond_file} ]] && chmod +x ${yzto_dir}/install.sh && ln -s ${yzto_dir}/install.sh ${yzto_commond_file}
+        [[ ! -L ${yzto_command_file} ]] && chmod +x ${yzto_dir}/install.sh && ln -s ${yzto_dir}/install.sh ${yzto_command_file}
         old_version=$(grep "shell_version=" ${yzto_dir}/install.sh | head -1 | awk -F '=|"' '{print $3}')
         echo "${old_version}" >${shell_version_tmp}
         echo "${shell_version}" >>${shell_version_tmp}
@@ -816,7 +816,7 @@ menu() {
 check_file_integrity
 read_version
 judge_mode
-yzto_commond
+yzto_command
 check_program
 check_xray_local_connect
 list "$@"
