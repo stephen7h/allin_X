@@ -2,19 +2,19 @@
 
 #====================================================
 #	System Request:Debian 9+/Ubuntu 18.04+/Centos 7+
-#	Author:	wulabing
-#	Dscription: Xray onekey Management
-#	email: admin@wulabing.com
+#	Author:	gnotihz
+#	Dscription: Xray OneKey Management
+#	email: co@live.hk
 #====================================================
+
+PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
+export PATH
+stty erase ^?
 
 cd "$(
     cd "$(dirname "$0")" || exit
     pwd
 )" || exit
-
-PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin
-export PATH
-stty erase ^?
 
 #fonts color
 Green="\033[32m"
