@@ -37,33 +37,33 @@ shell_version="1.9.3.6"
 shell_mode="未安装"
 tls_mode="None"
 ws_grpc_mode="None"
-yzt_dir="/etc/yzt"
-yzt_conf_dir="${yzt_dir}/conf"
-log_dir="${yzt_dir}/logs"
-xray_conf_dir="${yzt_conf_dir}/xray"
-nginx_conf_dir="${yzt_conf_dir}/nginx"
+yzto_dir="/etc/yzto"
+yzto_conf_dir="${yzto_dir}/conf"
+log_dir="${yzto_dir}/logs"
+xray_conf_dir="${yzto_conf_dir}/xray"
+nginx_conf_dir="${yzto_conf_dir}/nginx"
 xray_conf="${xray_conf_dir}/config.json"
 xray_status_conf="${xray_conf_dir}/status_config.json"
 xray_default_conf="/usr/local/etc/xray/config.json"
 nginx_conf="${nginx_conf_dir}/xray.conf"
 nginx_upstream_conf="${nginx_conf_dir}/xray-server.conf"
-yzt_commond_file="/usr/bin/yzt"
-ssl_chainpath="${yzt_dir}/cert"
+yzto_commond_file="/usr/bin/yzto"
+ssl_chainpath="${yzto_dir}/cert"
 nginx_dir="/etc/nginx"
 nginx_openssl_src="/usr/local/src"
-xray_info_file="${yzt_dir}/info/xray_info.inf"
-xray_qr_config_file="${yzt_dir}/info/vless_qr.json"
+xray_info_file="${yzto_dir}/info/xray_info.inf"
+xray_qr_config_file="${yzto_dir}/info/vless_qr.json"
 nginx_systemd_file="/etc/systemd/system/nginx.service"
 xray_systemd_file="/etc/systemd/system/xray.service"
 xray_access_log="/var/log/xray/access.log"
 xray_error_log="/var/log/xray/error.log"
 amce_sh_file="/root/.acme.sh/acme.sh"
-auto_update_file="${yzt_dir}/auto_update.sh"
-ssl_update_file="${yzt_dir}/ssl_update.sh"
+auto_update_file="${yzto_dir}/auto_update.sh"
+ssl_update_file="${yzto_dir}/ssl_update.sh"
 cert_group="nobody"
 myemali="my@example.com"
-shell_version_tmp="${yzt_dir}/tmp/shell_version.tmp"
-get_versions_all=$(curl -s https://www.yzt.com/api/xray_shell_versions)
+shell_version_tmp="${yzto_dir}/tmp/shell_version.tmp"
+get_versions_all=$(curl -s https://www.yzto.com/api/xray_shell_versions)
 bt_nginx="None"
 read_config_status=1
 xtls_add_more="off"
@@ -74,7 +74,7 @@ THREAD=$(($(grep 'processor' /proc/cpuinfo | sort -u | wc -l) + 1))
 [[ -f ${xray_qr_config_file} ]] && info_extraction_all=$(jq -rc . ${xray_qr_config_file})
 
 ##兼容代码，未来删除
-[[ ! -d "${yzt_dir}/tmp" ]] && mkdir -p ${yzt_dir}/tmp
+[[ ! -d "${yzto_dir}/tmp" ]] && mkdir -p ${yzto_dir}/tmp
 
 source '/etc/os-release'
 
@@ -258,16 +258,16 @@ update_sh() {
 }
 
 check_file_integrity() {
-    if [[ ! -L ${yzt_commond_file} ]] && [[ ! -f ${yzt_dir}/install.sh ]]; then
+    if [[ ! -L ${yzto_commond_file} ]] && [[ ! -f ${yzto_dir}/install.sh ]]; then
         check_system
         pkg_install "bc,jq,wget"
-        [[ ! -d "${yzt_dir}" ]] && mkdir -p ${yzt_dir}
-        [[ ! -d "${yzt_dir}/tmp" ]] && mkdir -p ${yzt_dir}/tmp
-        wget -N --no-check-certificate -P ${yzt_dir} https://raw.githubusercontent.com/stephen7h/allin_X/main/install.sh && chmod +x ${yzt_dir}/install.sh
+        [[ ! -d "${yzto_dir}" ]] && mkdir -p ${yzto_dir}
+        [[ ! -d "${yzto_dir}/tmp" ]] && mkdir -p ${yzto_dir}/tmp
+        wget -N --no-check-certificate -P ${yzto_dir} https://raw.githubusercontent.com/stephen7h/allin_X/main/install.sh && chmod +x ${yzto_dir}/install.sh
         judge "下载最新脚本"
-        ln -s ${yzt_dir}/install.sh ${yzt_commond_file}
+        ln -s ${yzto_dir}/install.sh ${yzto_commond_file}
         clear
-        bash yzt
+        bash yzto
     fi
 }
 
@@ -415,7 +415,7 @@ list() {
 }
 
 show_help() {
-    echo "usage: yzt [OPTION]"
+    echo "usage: yzto [OPTION]"
     echo
     echo 'OPTION:'
     echo '  -1, --install-tls           安装 Xray (Nginx+ws/gRPC+tls)'
@@ -443,43 +443,43 @@ show_help() {
     exit 0
 }
 
-yzt_commond() {
-    if [[ -L ${yzt_commond_file} ]] || [[ -f ${yzt_dir}/install.sh ]]; then
+yzto_commond() {
+    if [[ -L ${yzto_commond_file} ]] || [[ -f ${yzto_dir}/install.sh ]]; then
         ##在线运行与本地脚本比对
-        [[ ! -L ${yzt_commond_file} ]] && chmod +x ${yzt_dir}/install.sh && ln -s ${yzt_dir}/install.sh ${yzt_commond_file}
-        old_version=$(grep "shell_version=" ${yzt_dir}/install.sh | head -1 | awk -F '=|"' '{print $3}')
+        [[ ! -L ${yzto_commond_file} ]] && chmod +x ${yzto_dir}/install.sh && ln -s ${yzto_dir}/install.sh ${yzto_commond_file}
+        old_version=$(grep "shell_version=" ${yzto_dir}/install.sh | head -1 | awk -F '=|"' '{print $3}')
         echo "${old_version}" >${shell_version_tmp}
         echo "${shell_version}" >>${shell_version_tmp}
         oldest_version=$(sort -V ${shell_version_tmp} | head -1)
         version_difference=$(echo "(${shell_version:0:3}-${oldest_version:0:3})>0" | bc)
         if [[ -z ${old_version} ]]; then
-            wget -N --no-check-certificate -P ${yzt_dir} https://raw.githubusercontent.com/stephen7h/allin_X/main/install.sh && chmod +x ${yzt_dir}/install.sh
+            wget -N --no-check-certificate -P ${yzto_dir} https://raw.githubusercontent.com/stephen7h/allin_X/main/install.sh && chmod +x ${yzto_dir}/install.sh
             judge "下载最新脚本"
             clear
-            bash yzt
+            bash yzto
         elif [[ ${shell_version} != ${oldest_version} ]]; then
             if [[ ${version_difference} == 1 ]]; then
                 echo -e "${Warning} ${YellowBG} 脚本版本跨度较大, 可能存在不兼容情况, 是否继续使用 [Y/${Red}N${Font}${YellowBG}]? ${Font}"
                 read -r update_sh_fq
                 case $update_sh_fq in
                 [yY][eE][sS] | [yY])
-                    rm -rf ${yzt_dir}/install.sh
-                    wget -N --no-check-certificate -P ${yzt_dir} https://raw.githubusercontent.com/stephen7h/allin_X/main/install.sh && chmod +x ${yzt_dir}/install.sh
+                    rm -rf ${yzto_dir}/install.sh
+                    wget -N --no-check-certificate -P ${yzto_dir} https://raw.githubusercontent.com/stephen7h/allin_X/main/install.sh && chmod +x ${yzto_dir}/install.sh
                     judge "下载最新脚本"
                     clear
                     echo -e "${Warning} ${YellowBG} 脚本版本跨度较大, 若服务无法正常运行请卸载后重装!\n ${Font}"
                     ;;
                 *)
-                    bash yzt
+                    bash yzto
                     ;;
                 esac
             else
-                rm -rf ${yzt_dir}/install.sh
-                wget -N --no-check-certificate -P ${yzt_dir} https://raw.githubusercontent.com/stephen7h/allin_X/main/install.sh && chmod +x ${yzt_dir}/install.sh
+                rm -rf ${yzto_dir}/install.sh
+                wget -N --no-check-certificate -P ${yzto_dir} https://raw.githubusercontent.com/stephen7h/allin_X/main/install.sh && chmod +x ${yzto_dir}/install.sh
                 judge "下载最新脚本"
                 clear
             fi
-            bash yzt
+            bash yzto
         else
             ol_version=${shell_online_version}
             echo "${ol_version}" >${shell_version_tmp}
@@ -619,31 +619,31 @@ menu() {
     case $menu_num in
     0)
         update_sh
-        bash yzt
+        bash yzto
         ;;
     1)
         xray_update
         timeout "清空屏幕!"
         clear
-        bash yzt
+        bash yzto
         ;;
     2)
         nginx_update
         timeout "清空屏幕!"
         clear
-        bash yzt
+        bash yzto
         ;;
     3)
         shell_mode="Nginx+ws+TLS"
         tls_mode="TLS"
         install_xray_ws_tls
-        bash yzt
+        bash yzto
         ;;
     4)
         shell_mode="XTLS+Nginx"
         tls_mode="XTLS"
         install_xray_xtls
-        bash yzt
+        bash yzto
         ;;
     5)
         echo -e "\n${Warning} ${YellowBG} 此模式推荐用于负载均衡, 一般情况不推荐使用, 是否安装 [Y/${Red}N${Font}${YellowBG}]? ${Font}"
@@ -656,7 +656,7 @@ menu() {
             ;;
         *) ;;
         esac
-        bash yzt
+        bash yzto
         ;;
     6)
         UUID_set
@@ -728,13 +728,13 @@ menu() {
         service_start
         timeout "清空屏幕!"
         clear
-        bash yzt
+        bash yzto
         ;;
     18)
         service_stop
         timeout "清空屏幕!"
         clear
-        bash yzt
+        bash yzto
         ;;
     19)
         if [[ ${tls_mode} != "None" ]]; then
@@ -791,7 +791,7 @@ menu() {
         uninstall_all
         timeout "清空屏幕!"
         clear
-        bash yzt
+        bash yzto
         ;;
     30)
         delete_tls_key_and_crt
@@ -816,7 +816,7 @@ menu() {
 check_file_integrity
 read_version
 judge_mode
-yzt_commond
+yzto_commond
 check_program
 check_xray_local_connect
 list "$@"
