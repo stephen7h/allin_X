@@ -33,6 +33,286 @@ OK="${Green}[OK]${Font}"
 Error="${RedW}[错误]${Font}"
 Warning="${RedW}[警告]${Font}"
 
+shell_version="1.9.3.6"
+shell_mode="未安装"
+tls_mode="None"
+ws_grpc_mode="None"
+yzt_dir="/etc/yzt"
+yzt_conf_dir="${yzt_dir}/conf"
+log_dir="${yzt_dir}/logs"
+xray_conf_dir="${yzt_conf_dir}/xray"
+nginx_conf_dir="${yzt_conf_dir}/nginx"
+xray_conf="${xray_conf_dir}/config.json"
+xray_status_conf="${xray_conf_dir}/status_config.json"
+xray_default_conf="/usr/local/etc/xray/config.json"
+nginx_conf="${nginx_conf_dir}/xray.conf"
+nginx_upstream_conf="${nginx_conf_dir}/xray-server.conf"
+yzt_commond_file="/usr/bin/yzt"
+ssl_chainpath="${yzt_dir}/cert"
+nginx_dir="/etc/nginx"
+nginx_openssl_src="/usr/local/src"
+xray_info_file="${yzt_dir}/info/xray_info.inf"
+xray_qr_config_file="${yzt_dir}/info/vless_qr.json"
+nginx_systemd_file="/etc/systemd/system/nginx.service"
+xray_systemd_file="/etc/systemd/system/xray.service"
+xray_access_log="/var/log/xray/access.log"
+xray_error_log="/var/log/xray/error.log"
+amce_sh_file="/root/.acme.sh/acme.sh"
+auto_update_file="${yzt_dir}/auto_update.sh"
+ssl_update_file="${yzt_dir}/ssl_update.sh"
+cert_group="nobody"
+myemali="my@example.com"
+shell_version_tmp="${yzt_dir}/tmp/shell_version.tmp"
+get_versions_all=$(curl -s https://www.yzt.com/api/xray_shell_versions)
+bt_nginx="None"
+read_config_status=1
+xtls_add_more="off"
+old_config_status="off"
+old_tls_mode="NULL"
+random_num=$((RANDOM % 12 + 4))
+THREAD=$(($(grep 'processor' /proc/cpuinfo | sort -u | wc -l) + 1))
+[[ -f ${xray_qr_config_file} ]] && info_extraction_all=$(jq -rc . ${xray_qr_config_file})
+
+##兼容代码，未来删除
+[[ ! -d "${yzt_dir}/tmp" ]] && mkdir -p ${yzt_dir}/tmp
+
+source '/etc/os-release'
+
+VERSION=$(echo "${VERSION}" | awk -F "[()]" '{print $2}')
+
+
+timeout() {
+    timeout=0
+    timeout_str=""
+    while [[ ${timeout} -le 30 ]]; do
+        let timeout++
+        timeout_str+="#"
+    done
+    let timeout=timeout+5
+    while [[ ${timeout} -gt 0 ]]; do
+        let timeout--
+        if [[ ${timeout} -gt 25 ]]; then
+            let timeout_color=32
+            let timeout_bg=42
+            timeout_index="3"
+        elif [[ ${timeout} -gt 15 ]]; then
+            let timeout_color=33
+            let timeout_bg=43
+            timeout_index="2"
+        elif [[ ${timeout} -gt 5 ]]; then
+            let timeout_color=31
+            let timeout_bg=41
+            timeout_index="1"
+        else
+            timeout_index="0"
+        fi
+        printf "${Warning} ${GreenBG} %d秒后将$1 ${Font} \033[${timeout_color};${timeout_bg}m%-s\033[0m \033[${timeout_color}m%d\033[0m \r" "$timeout_index" "$timeout_str" "$timeout_index"
+        sleep 0.1
+        timeout_str=${timeout_str%?}
+        [[ ${timeout} -eq 0 ]] && printf "\n"
+    done
+}
+
+install_xray_ws_tls() {
+    is_root
+    check_system
+    dependency_install
+    basic_optimization
+    create_directory
+    old_config_exist_check
+    domain_check
+    ws_grpc_choose
+    port_set
+    ws_inbound_port_set
+    grpc_inbound_port_set
+    firewall_set
+    ws_path_set
+    grpc_path_set
+    email_set
+    UUID_set
+    ws_grpc_qr
+    vless_qr_config_tls_ws
+    stop_service_all
+    xray_install
+    port_exist_check 80
+    port_exist_check "${port}"
+    nginx_exist_check
+    xray_conf_add
+    nginx_conf_add
+    nginx_conf_servers_add
+    web_camouflage
+    ssl_judge_and_install
+    nginx_systemd
+    tls_type
+    basic_information
+    service_restart
+    enable_process_systemd
+    acme_cron_update
+    auto_update
+    vless_link_image_choice
+    show_information
+}
+
+install_xray_xtls() {
+    is_root
+    check_system
+    dependency_install
+    basic_optimization
+    create_directory
+    old_config_exist_check
+    domain_check
+    port_set
+    email_set
+    UUID_set
+    xray_xtls_add_more_choose
+    ws_grpc_qr
+    firewall_set
+    vless_qr_config_xtls
+    stop_service_all
+    xray_install
+    port_exist_check 80
+    port_exist_check "${port}"
+    nginx_exist_check
+    nginx_conf_add_xtls
+    xray_conf_add
+    ssl_judge_and_install
+    nginx_systemd
+    tls_type
+    basic_information
+    service_restart
+    enable_process_systemd
+    acme_cron_update
+    auto_update
+    vless_link_image_choice
+    show_information
+}
+
+install_xray_ws_only() {
+    is_root
+    check_system
+    dependency_install
+    basic_optimization
+    create_directory
+    old_config_exist_check
+    ip_check
+    ws_grpc_choose
+    ws_inbound_port_set
+    grpc_inbound_port_set
+    firewall_set
+    ws_path_set
+    grpc_path_set
+    email_set
+    UUID_set
+    ws_grpc_qr
+    vless_qr_config_ws_only
+    stop_service_all
+    xray_install
+    port_exist_check "${xport}"
+    port_exist_check "${gport}"
+    xray_conf_add
+    basic_information
+    service_restart
+    enable_process_systemd
+    auto_update
+    vless_link_image_choice
+    show_information
+}
+
+update_sh() {
+    ol_version=${shell_online_version}
+    echo "${ol_version}" >${shell_version_tmp}
+    [[ -z ${ol_version} ]] && echo -e "${Error} ${RedBG}  检测最新版本失败! ${Font}" && return 1
+    echo "${shell_version}" >>${shell_version_tmp}
+    newest_version=$(sort -rV ${shell_version_tmp} | head -1)
+    oldest_version=$(sort -V ${shell_version_tmp} | head -1)
+    version_difference=$(echo "(${newest_version:0:3}-${oldest_version:0:3})>0" | bc)
+    if [[ ${shell_version} != ${newest_version} ]]; then
+        if [[ ${auto_update} != "YES" ]]; then
+            if [[ ${version_difference} == 1 ]]; then
+                echo -e "\n${Warning} ${YellowBG} 存在新版本, 但版本跨度较大, 可能存在不兼容情况, 是否更新 [Y/${Red}N${Font}${YellowBG}]? ${Font}"
+            else
+                echo -e "\n${GreenBG} 存在新版本, 是否更新 [Y/${Red}N${Font}${GreenBG}]? ${Font}"
+            fi
+            read -r update_confirm
+        else
+            [[ -z ${ol_version} ]] && echo "检测 脚本 最新版本失败!" >>${log_file} && exit 1
+            [[ ${version_difference} == 1 ]] && echo "脚本 版本差别过大, 跳过更新!" >>${log_file} && exit 1
+            update_confirm="YES"
+        fi
+        case $update_confirm in
+        [yY][eE][sS] | [yY])
+            [[ -L ${idleleo_commend_file} ]] && rm -f ${idleleo_commend_file}
+            wget -N --no-check-certificate -P ${idleleo_dir} https://raw.githubusercontent.com/paniy/Xray_bash_onekey/main/install.sh && chmod +x ${idleleo_dir}/install.sh
+            ln -s ${idleleo_dir}/install.sh ${idleleo_commend_file}
+            clear
+            echo -e "${OK} ${GreenBG} 更新完成 ${Font}"
+            [[ ${version_difference} == 1 ]] && echo -e "${Warning} ${YellowBG} 脚本版本跨度较大, 若服务无法正常运行请卸载后重装! ${Font}"
+            ;;
+        *) ;;
+        esac
+    else
+        clear
+        echo -e "${OK} ${GreenBG} 当前版本为最新版本 ${Font}"
+    fi
+
+}
+
+check_file_integrity() {
+    if [[ ! -L ${yzt_commond_file} ]] && [[ ! -f ${yzt_dir}/install.sh ]]; then
+        check_system
+        pkg_install "bc,jq,wget"
+        [[ ! -d "${yzt_dir}" ]] && mkdir -p ${yzt_dir}
+        [[ ! -d "${yzt_dir}/tmp" ]] && mkdir -p ${yzt_dir}/tmp
+        wget -N --no-check-certificate -P ${yzt_dir} https://raw.githubusercontent.com/stephen7h/allin_X/main/install.sh && chmod +x ${yzt_dir}/install.sh
+        judge "下载最新脚本"
+        ln -s ${yzt_dir}/install.sh ${yzt_commond_file}
+        clear
+        bash yzt
+    fi
+}
+
+read_version() {
+    shell_online_version="$(check_version shell_online_version)"
+    xray_version="$(check_version xray_tested_version)"
+    nginx_version="$(check_version nginx_online_version)"
+    openssl_version="$(check_version openssl_online_version)"
+    jemalloc_version="$(check_version jemalloc_tested_version)"
+}
+
+judge_mode() {
+    if [[ -f ${xray_qr_config_file} ]]; then
+        ws_grpc_mode=$(info_extraction ws_grpc_mode)
+        tls_mode=$(info_extraction tls)
+        bt_nginx=$(info_extraction bt_nginx)
+        if [[ ${tls_mode} == "TLS" ]]; then
+            [[ ${ws_grpc_mode} == "onlyws" ]] && shell_mode="Nginx+ws+TLS"
+            [[ ${ws_grpc_mode} == "onlygRPC" ]] && shell_mode="Nginx+gRPC+TLS"
+            [[ ${ws_grpc_mode} == "all" ]] && shell_mode="Nginx+ws+gRPC+TLS"
+        elif [[ ${tls_mode} == "XTLS" ]]; then
+            if [[ $(info_extraction xtls_add_more) != "off" ]]; then
+                xtls_add_more="on"
+                [[ ${ws_grpc_mode} == "onlyws" ]] && shell_mode="XTLS+Nginx+ws"
+                [[ ${ws_grpc_mode} == "onlygRPC" ]] && shell_mode="XTLS+Nginx+gRPC"
+                [[ ${ws_grpc_mode} == "all" ]] && shell_mode="XTLS+Nginx+ws+gRPC"
+            else
+                shell_mode="XTLS+Nginx"
+            fi
+        elif [[ ${tls_mode} == "None" ]]; then
+            [[ ${ws_grpc_mode} == "onlyws" ]] && shell_mode="ws ONLY"
+            [[ ${ws_grpc_mode} == "onlygRPC" ]] && shell_mode="gRPC ONLY"
+            [[ ${ws_grpc_mode} == "all" ]] && shell_mode="ws+gRPC ONLY"
+        fi
+        [[ $(info_extraction xtls_add_more) == "on" ]] && xtls_add_more="on"
+        old_tls_mode=${tls_mode}
+    fi
+}
+
+maintain() {
+    echo -e "${Error} ${RedBG} 该选项暂时无法使用! ${Font}"
+    echo -e "${Error} ${RedBG} $1 ${Font}"
+    exit 0
+}
+
 list() {
     case $1 in
     '-1' | '--install-tls')
@@ -135,7 +415,7 @@ list() {
 }
 
 show_help() {
-    echo "usage: idleleo [OPTION]"
+    echo "usage: yzt [OPTION]"
     echo
     echo 'OPTION:'
     echo '  -1, --install-tls           安装 Xray (Nginx+ws/gRPC+tls)'
@@ -163,15 +443,127 @@ show_help() {
     exit 0
 }
 
+yzt_commond() {
+    if [[ -L ${yzt_commond_file} ]] || [[ -f ${yzt_dir}/install.sh ]]; then
+        ##在线运行与本地脚本比对
+        [[ ! -L ${yzt_commond_file} ]] && chmod +x ${yzt_dir}/install.sh && ln -s ${yzt_dir}/install.sh ${yzt_commond_file}
+        old_version=$(grep "shell_version=" ${yzt_dir}/install.sh | head -1 | awk -F '=|"' '{print $3}')
+        echo "${old_version}" >${shell_version_tmp}
+        echo "${shell_version}" >>${shell_version_tmp}
+        oldest_version=$(sort -V ${shell_version_tmp} | head -1)
+        version_difference=$(echo "(${shell_version:0:3}-${oldest_version:0:3})>0" | bc)
+        if [[ -z ${old_version} ]]; then
+            wget -N --no-check-certificate -P ${yzt_dir} https://raw.githubusercontent.com/stephen7h/allin_X/main/install.sh && chmod +x ${yzt_dir}/install.sh
+            judge "下载最新脚本"
+            clear
+            bash yzt
+        elif [[ ${shell_version} != ${oldest_version} ]]; then
+            if [[ ${version_difference} == 1 ]]; then
+                echo -e "${Warning} ${YellowBG} 脚本版本跨度较大, 可能存在不兼容情况, 是否继续使用 [Y/${Red}N${Font}${YellowBG}]? ${Font}"
+                read -r update_sh_fq
+                case $update_sh_fq in
+                [yY][eE][sS] | [yY])
+                    rm -rf ${yzt_dir}/install.sh
+                    wget -N --no-check-certificate -P ${yzt_dir} https://raw.githubusercontent.com/stephen7h/allin_X/main/install.sh && chmod +x ${yzt_dir}/install.sh
+                    judge "下载最新脚本"
+                    clear
+                    echo -e "${Warning} ${YellowBG} 脚本版本跨度较大, 若服务无法正常运行请卸载后重装!\n ${Font}"
+                    ;;
+                *)
+                    bash yzt
+                    ;;
+                esac
+            else
+                rm -rf ${yzt_dir}/install.sh
+                wget -N --no-check-certificate -P ${yzt_dir} https://raw.githubusercontent.com/stephen7h/allin_X/main/install.sh && chmod +x ${yzt_dir}/install.sh
+                judge "下载最新脚本"
+                clear
+            fi
+            bash yzt
+        else
+            ol_version=${shell_online_version}
+            echo "${ol_version}" >${shell_version_tmp}
+            [[ -z ${ol_version} ]] && shell_need_update="${Red}[检测失败!]${Font}"
+            echo "${shell_version}" >>${shell_version_tmp}
+            newest_version=$(sort -rV ${shell_version_tmp} | head -1)
+            if [[ ${shell_version} != ${newest_version} ]]; then
+                shell_need_update="${Red}[有新版!]${Font}"
+                shell_emoji="${Red}>_<${Font}"
+            else
+                shell_need_update="${Green}[最新版]${Font}"
+                shell_emoji="${Green}^O^${Font}"
+            fi
+            if [[ -f ${xray_qr_config_file} ]]; then
+                if [[ $(info_extraction nginx_version) == null ]] || [[ ! -f "${nginx_dir}/sbin/nginx" ]]; then
+                    nginx_need_update="${Red}[未安装]${Font}"
+                elif [[ ${nginx_version} != $(info_extraction nginx_version) ]] || [[ ${openssl_version} != $(info_extraction openssl_version) ]] || [[ ${jemalloc_version} != $(info_extraction jemalloc_version) ]]; then
+                    nginx_need_update="${Red}[有新版!]${Font}"
+                else
+                    nginx_need_update="${Green}[最新版]${Font}"
+                fi
+                if [[ -f ${xray_qr_config_file} ]] && [[ -f ${xray_conf} ]] && [[ -f /usr/local/bin/xray ]]; then
+                    xray_online_version=$(check_version xray_online_version)
+                    if [[ $(info_extraction xray_version) == null ]]; then
+                        xray_need_update="${Green}[已安装] (版本未知)${Font}"
+                    elif [[ ${xray_version} != $(info_extraction xray_version) ]] && [[ $(info_extraction xray_version) != ${xray_online_version} ]]; then
+                        xray_need_update="${Red}[有新版!]${Font}"
+                    elif [[ ${xray_version} == $(info_extraction xray_version) ]] || [[ $(info_extraction xray_version) == ${xray_online_version} ]]; then
+                        if [[ $(info_extraction xray_version) != ${xray_online_version} ]]; then
+                            xray_need_update="${Green}[有测试版]${Font}"
+                        else
+                            xray_need_update="${Green}[最新版]${Font}"
+                        fi
+                    fi
+                else
+                    xray_need_update="${Red}[未安装]${Font}"
+                fi
+            else
+                nginx_need_update="${Red}[未安装]${Font}"
+                xray_need_update="${Red}[未安装]${Font}"
+            fi
+        fi
+    fi
+}
+
+check_program() {
+    if [[ -n $(pgrep nginx) ]]; then
+        nignx_status="${Green}运行中..${Font}"
+    else
+        nignx_status="${Red}未运行${Font}"
+    fi
+    if [[ -n $(pgrep xray) ]]; then
+        xray_status="${Green}运行中..${Font}"
+    else
+        xray_status="${Red}未运行${Font}"
+    fi
+}
+
+curl_local_connect() {
+    curl -Is -o /dev/null -w %{http_code} "https://$1/$2"
+}
+
+check_xray_local_connect() {
+    if [[ -f ${xray_qr_config_file} ]]; then
+        xray_local_connect_status="${Red}无法连通${Font}"
+        if [[ ${tls_mode} == "TLS" ]]; then
+            [[ ${ws_grpc_mode} == "onlyws" ]] && [[ $(curl_local_connect $(info_extraction host) $(info_extraction path)) == "400" ]] && xray_local_connect_status="${Green}本地正常${Font}"
+            [[ ${ws_grpc_mode} == "onlygrpc" ]] && [[ $(curl_local_connect $(info_extraction host) $(info_extraction servicename)) == "502" ]] && xray_local_connect_status="${Green}本地正常${Font}"
+            [[ ${ws_grpc_mode} == "all" ]] && [[ $(curl_local_connect $(info_extraction host) $(info_extraction servicename)) == "502" && $(curl_local_connect $(info_extraction host) $(info_extraction path)) == "400" ]] && xray_local_connect_status="${Green}本地正常${Font}"
+        elif [[ ${tls_mode} == "XTLS" ]]; then
+            [[ $(curl_local_connect $(info_extraction host)) == "302" ]] && xray_local_connect_status="${Green}本地正常${Font}"
+        elif [[ ${tls_mode} == "None" ]]; then
+            xray_local_connect_status="${Green}无需测试${Font}"
+        fi
+    else
+        xray_local_connect_status="${Red}未安装${Font}"
+    fi
+}
+
 menu() {
 
-    echo -e "\nXray 安装管理脚本 ${Red}[${shell_version}]${Font} ${shell_emoji}"
-    echo -e "--- authored by paniy ---"
-    echo -e "--- changed by www.idleleo.com ---"
-    echo -e "--- https://github.com/paniy ---\n"
+    echo -e "\nXray 安装管理脚本 ${Red}[${shell_version}]${Font} ${shell_emoji}\n"
     echo -e "当前模式: ${shell_mode}\n"
-
-    echo -e "可以使用${RedW} idleleo ${Font}命令管理脚本${Font}\n"
+    echo -e "可以使用${RedW} yzto ${Font}命令管理脚本${Font}\n"
 
     echo -e "—————————————— ${GreenW}版本检测${Font} ——————————————"
     echo -e "脚本:  ${shell_need_update}"
@@ -227,31 +619,31 @@ menu() {
     case $menu_num in
     0)
         update_sh
-        bash idleleo
+        bash yzt
         ;;
     1)
         xray_update
         timeout "清空屏幕!"
         clear
-        bash idleleo
+        bash yzt
         ;;
     2)
         nginx_update
         timeout "清空屏幕!"
         clear
-        bash idleleo
+        bash yzt
         ;;
     3)
         shell_mode="Nginx+ws+TLS"
         tls_mode="TLS"
         install_xray_ws_tls
-        bash idleleo
+        bash yzt
         ;;
     4)
         shell_mode="XTLS+Nginx"
         tls_mode="XTLS"
         install_xray_xtls
-        bash idleleo
+        bash yzt
         ;;
     5)
         echo -e "\n${Warning} ${YellowBG} 此模式推荐用于负载均衡, 一般情况不推荐使用, 是否安装 [Y/${Red}N${Font}${YellowBG}]? ${Font}"
@@ -264,7 +656,7 @@ menu() {
             ;;
         *) ;;
         esac
-        bash idleleo
+        bash yzt
         ;;
     6)
         UUID_set
@@ -336,13 +728,13 @@ menu() {
         service_start
         timeout "清空屏幕!"
         clear
-        bash idleleo
+        bash yzt
         ;;
     18)
         service_stop
         timeout "清空屏幕!"
         clear
-        bash idleleo
+        bash yzt
         ;;
     19)
         if [[ ${tls_mode} != "None" ]]; then
@@ -399,7 +791,7 @@ menu() {
         uninstall_all
         timeout "清空屏幕!"
         clear
-        bash idleleo
+        bash yzt
         ;;
     30)
         delete_tls_key_and_crt
@@ -421,4 +813,10 @@ menu() {
     esac
 }
 
+check_file_integrity
+read_version
+judge_mode
+yzt_commond
+check_program
+check_xray_local_connect
 list "$@"
